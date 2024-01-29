@@ -230,6 +230,7 @@ def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
     wavelengths_air_nm = np.zeros(numlines)
     loggf_kurucz = np.zeros(numlines)
     upper_j = np.zeros(numlines)
+    lower_j = np.zeros(numlines)
     e_upper = np.zeros(numlines)
     e_lower = np.zeros(numlines)
     reader = ff.FortranRecordReader(format_string)
@@ -242,14 +243,16 @@ def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
         eu = np.abs(array[6])
 
         if eu > el:
+            lower_j[ii] = array[4]
             upper_j[ii] = array[7]
             e_upper[ii] = eu
             e_lower[ii] = el
         else:
             upper_j[ii] = array[4]
+            lower_j[ii] = array[7]
             e_upper[ii] = el
             e_lower[ii] = eu
-    dataclass = dataset(e_upper,e_lower,wavelength_nm=wavelengths_air_nm,loggf=loggf_kurucz,j_upper=upper_j)
+    dataclass = dataset(e_upper,e_lower,wavelength_nm=wavelengths_air_nm,loggf=loggf_kurucz,j_upper=upper_j,j_lower=lower_j)
 
     if wavelength_convert:
         dataclass.convert_wavelengths_to_vaccuum()
