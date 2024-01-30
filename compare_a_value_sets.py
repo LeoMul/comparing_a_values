@@ -32,13 +32,13 @@ def convert_loggf_to_avalue(wavelength_array_nm,loggf_array,upper_weight_array):
 
 class dataset:
     def __init__(self,eupper_wavenumber,elower_wavenumber,wavelength_nm,avalue=[],loggf = [],j_upper=[],j_lower=[]):
-        self.eupper = eupper_wavenumber
-        self.elower = elower_wavenumber
-        self.avalue = avalue
-        self.loggf = loggf
+        self.eupper     = eupper_wavenumber
+        self.elower     = elower_wavenumber
+        self.avalue     = avalue
+        self.loggf      = loggf
         self.wavelength = wavelength_nm
-        self.j_upper = j_upper
-        self.j_lower = j_lower
+        self.j_upper    = j_upper
+        self.j_lower    = j_lower
 
     #converts your wavelengths if they are in air.
     def convert_wavelengths_to_vaccuum(self):   
@@ -63,6 +63,40 @@ class dataset:
         assert False,"not yet implemented"
         print("not yet implemented")
         return 
+    
+    def reduce(self,e_upper_limit):
+        indices_wanted = np.argwhere(self.eupper < e_upper_limit)
+        #print(indices_wanted)
+
+        if len(indices_wanted) > 0:
+            initial = len(self.eupper)
+            indices_wanted = np.concatenate(indices_wanted)
+            self.eupper     = self.eupper[indices_wanted] 
+            self.elower     = self.elower[indices_wanted] 
+             
+            
+            self.wavelength = self.wavelength[indices_wanted] 
+            if len(self.j_upper) > 0:
+                self.j_upper    = self.j_upper[indices_wanted] 
+            if len(self.j_lower) > 0:
+                self.j_lower    = self.j_lower[indices_wanted]
+            if len(self.avalue) > 0:
+                self.loggf    = self.loggf[indices_wanted]
+            if len(self.loggf) > 0:
+                self.avalue    = self.avalue[indices_wanted]
+
+            #self.avalue     = self.avalue[indices_wanted]
+            #self.loggf      = self.loggf[indices_wanted] 
+            
+            final = len(self.eupper)
+            print("reduced data set from ",initial," to ",final," lines.")
+
+        else:
+            print("no upper levels below this threshold, dataset not changing.")
+ 
+
+        
+
 
 class compared_data:
     def __init__(self,comparison):
