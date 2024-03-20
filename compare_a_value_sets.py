@@ -31,7 +31,7 @@ def convert_loggf_to_avalue(wavelength_array_nm,loggf_array,upper_weight_array):
     return avalues
 
 class dataset:
-    def __init__(self,eupper_wavenumber,elower_wavenumber,wavelength_nm,avalue=[],loggf = [],j_upper=[],j_lower=[]):
+    def __init__(self,eupper_wavenumber,elower_wavenumber,wavelength_nm,avalue=[],loggf = [],j_upper=[],j_lower=[],csf_upper=[],csf_lower=[]):
         self.eupper     = eupper_wavenumber
         self.elower     = elower_wavenumber
         self.avalue     = avalue
@@ -39,6 +39,8 @@ class dataset:
         self.wavelength = wavelength_nm
         self.j_upper    = j_upper
         self.j_lower    = j_lower
+        self.csf_upper  = csf_upper
+        self.csf_lower  = csf_lower
 
     #converts your wavelengths if they are in air.
     def convert_wavelengths_to_vaccuum(self):   
@@ -84,7 +86,10 @@ class dataset:
                 self.loggf    = self.loggf[indices_wanted]
             if len(self.loggf) > 0:
                 self.avalue    = self.avalue[indices_wanted]
-
+            if len(self.csf_upper) > 0:
+                self.csf_upper    = self.csf_upper[indices_wanted] 
+            if len(self.j_lower) > 0:
+                self.csf_lower    = self.csf_lower[indices_wanted]
             #self.avalue     = self.avalue[indices_wanted]
             #self.loggf      = self.loggf[indices_wanted] 
             
@@ -149,6 +154,11 @@ class comparison:
         wavelength_indices_found = []
         wavelengths_not_found = []
 
+        base_ju = self.base.j_upper
+        base_jl = self.base.j_lower
+        comp_ju = self.compared.j_upper        
+        comp_jl = self.compared.j_lower
+
         base_wavelengths_found = []
         comp_wavelengths_found = []
         print("there are",self.number_to_be_compared,'wavelengths to be compared')
@@ -160,29 +170,55 @@ class comparison:
             match_found = False
 
             if len(possible_wavelengths_indices) > 0:
+                
                 possible_wavelengths_indices = np.concatenate(possible_wavelengths_indices,axis=0)
 
                 possible_uppers = compared_uppers[possible_wavelengths_indices]
 
                 index_order = np.argsort(np.abs(current_upper - possible_uppers))
+
                 possible_wavelengths_indices = possible_wavelengths_indices[index_order]
                 possible_uppers = possible_uppers[index_order]
 
                 for ii in possible_wavelengths_indices:
                     test_upper = compared_uppers[ii]
-                    
-                    if np.abs(test_upper - current_upper) < tolerance_wavenumber:
-                        match_found = True 
-                        self.compared_positions_of_base_wls_in_compared_dataset.append(ii)
-                        wavelength_indices_found.append(jj)
-                        comp_wavelengths_found.append(compared_wavelengths[ii])
-                        base_wavelengths_found.append(current_wavelength)
-                        self.compared_wl_raw[jj] = compared_wavelengths[ii]
-                        self.compared_a_values_raw[jj] = compared_avalues[ii]
-                        self.compared_eupper_raw[jj] = compared_uppers[ii]
-                        self.compared_elower_raw[jj] = compared_lowers[ii]
+                    #print(len(base_ju))
 
-                        break 
+
+                    if np.abs(test_upper - current_upper) < tolerance_wavenumber:
+                        
+                        #this is so messy. i am sorry for 
+                        #my future self who has to debug this
+                        #print(len(base_ju))
+
+                        if (len(base_ju) > 0) and (len(base_jl) > 0) and (len(comp_ju) > 0) and (len(comp_jl) > 0) :
+
+                                if (base_ju[jj] == comp_ju[ii]) and (base_jl[jj] == comp_jl[ii]):
+                                    match_found = True 
+
+                                    self.compared_positions_of_base_wls_in_compared_dataset.append(ii)
+                                    wavelength_indices_found.append(jj)
+                                    comp_wavelengths_found.append(compared_wavelengths[ii])
+                                    base_wavelengths_found.append(current_wavelength)
+                                    self.compared_wl_raw[jj] = compared_wavelengths[ii]
+                                    self.compared_a_values_raw[jj] = compared_avalues[ii]
+                                    self.compared_eupper_raw[jj] = compared_uppers[ii]
+                                    self.compared_elower_raw[jj] = compared_lowers[ii]
+
+                                    break 
+                        else:
+                            match_found = True 
+
+                            self.compared_positions_of_base_wls_in_compared_dataset.append(ii)
+                            wavelength_indices_found.append(jj)
+                            comp_wavelengths_found.append(compared_wavelengths[ii])
+                            base_wavelengths_found.append(current_wavelength)
+                            self.compared_wl_raw[jj] = compared_wavelengths[ii]
+                            self.compared_a_values_raw[jj] = compared_avalues[ii]
+                            self.compared_eupper_raw[jj] = compared_uppers[ii]
+                            self.compared_elower_raw[jj] = compared_lowers[ii]
+
+                            break 
                 if match_found == False:
                     print("requested upper ",current_upper," with possible comparable uppers ",possible_uppers )
                     print("wavelength found ",current_wavelength, "but no matching upper found.")
@@ -191,8 +227,11 @@ class comparison:
                 wavelengths_not_found.append(current_wavelength)
 
         #print(positions_of_connor_wls_in_compared_data_set)
+                
+                
         wavelength_indices_found = np.array(wavelength_indices_found)
         wavelengths_not_found = np.array(wavelengths_not_found)
+
         self.wavelength_indices_found = wavelength_indices_found
         self.wavelengths_not_found = wavelengths_not_found
         print("total wavelengths not found: ",len(wavelengths_not_found))
@@ -206,17 +245,9 @@ class comparison:
         self.foundwlbase = base_wavelengths_found
         self.foundwlcomp = comp_wavelengths_found
         self.compared_data = compared_data(self)
-        
+    
+    def sort(self,sorting = ''):
 
-    def write_out_data_file(self,filename,label1,label2,ignore_null=False,sort_by_a_value_ratio=False):
-        file = open(filename,'w')
-        format_string = 'F10.2,1X,F10.2,2ES10.2,F10.1,1X,F10.1,F10.1,1X,F10.1'
-        CON = label1 
-        KUR = label2
-
-        header = "#    "+CON+"wl      "+KUR+"wl      "+CON+"a      "+KUR+"a     "+CON+"el      "+CON+"eu     "+KUR+"el      "+KUR+"eu" +'\n'
-
-        file.write(header)
         base_data_wl    = self.base.wavelength
         compared_wl     = self.compared_wl_raw
         base_avalue     = self.base.avalue
@@ -226,13 +257,26 @@ class comparison:
         comp_el         = self.compared_elower_raw
         comp_eu         = self.compared_eupper_raw
 
-        line = ff.FortranRecordWriter(format_string)
+        csf_upper = self.base.csf_upper
+        csf_lower = self.base.csf_lower
+        j_upper = self.base.j_upper
+        j_lower = self.base.j_lower 
+        avalue_ratio = base_avalue/compared_avalue
 
+        temp_array_for_my_sanity = base_el 
+        temp_array_for_my_sanity = np.concatenate((temp_array_for_my_sanity,base_eu)) 
 
+        levels = (np.unique(temp_array_for_my_sanity))
+        
+        print(levels)
 
-        if sort_by_a_value_ratio:
-            avalue_ratio = base_avalue/compared_avalue
+        if sorting == 'avalue_ratio':
             sorted_indices = np.argsort(avalue_ratio)
+        elif sorting == 'wavelength':
+            sorted_indices = np.argsort(base_data_wl)
+        elif sorting == 'base_el':
+
+            sorted_indices = np.argsort(base_el)
             base_data_wl    = base_data_wl[sorted_indices]  
             compared_wl     = compared_wl[sorted_indices]  
             base_avalue     = base_avalue[sorted_indices]  
@@ -240,18 +284,311 @@ class comparison:
             base_el         = base_el[sorted_indices]  
             base_eu         = base_eu[sorted_indices]  
             comp_el         = comp_el[sorted_indices]  
-            comp_eu         = comp_eu[sorted_indices]  
+            comp_eu         = comp_eu[sorted_indices]   
+            csf_lower_copy = csf_lower
+            csf_upper_copy = csf_upper
+            j_lower_copy = j_lower
+            j_upper_copy = j_upper
+
+            csf_lower = []  
+            csf_upper = [] 
+            j_lower = []
+            j_upper = []
+            for jj in sorted_indices:
+                csf_lower.append(csf_lower_copy[jj])
+                csf_upper.append(csf_upper_copy[jj])
+                j_lower.append(j_lower_copy[jj])
+                j_upper.append(j_upper_copy[jj])
+                #sorted_indices = np.array([])
+
+            unique_energies,counts = np.unique(base_el,return_counts=True)
+            #print(unique_energies,counts,np.shape(counts))
+            offset = 0
+            print(sorted_indices)
+            for ii in range(0,np.shape(counts)[0]-1):
+        
+                #print(offset,offset + counts[ii])
+                
+                new_indices = np.argsort(base_eu[offset:offset + counts[ii]]) + offset
+
+                #print(base_eu[new_indices])
+
+                sorted_indices[offset:offset + counts[ii]] = new_indices
+                offset += counts[ii]
+
+                #print(base_el_temp[counts[ii-1]-1:counts[ii]])
+            print(sorted_indices)
+
+
+
+
+        else:
+            sorted_indices = np.arange(0,len(base_data_wl),1)
+        
+        base_data_wl    = base_data_wl[sorted_indices]  
+        compared_wl     = compared_wl[sorted_indices]  
+        base_avalue     = base_avalue[sorted_indices]  
+        compared_avalue = compared_avalue[sorted_indices]  
+        base_el         = base_el[sorted_indices]  
+        base_eu         = base_eu[sorted_indices]  
+        comp_el         = comp_el[sorted_indices]  
+        comp_eu         = comp_eu[sorted_indices]  
+
+        #print(sorted_indices)
+
+        #j_lower         =  j_lower  [sorted_indices]  
+        #j_upper         =  j_upper  [sorted_indices]  
+
+        csf_lower_copy = csf_lower
+        csf_upper_copy = csf_upper
+        j_lower_copy = j_lower
+        j_upper_copy = j_upper
+
+        csf_lower = []  
+        csf_upper = [] 
+        j_lower = []
+        j_upper = []
+        for jj in sorted_indices:
+            csf_lower.append(csf_lower_copy[jj])
+            csf_upper.append(csf_upper_copy[jj])
+            j_lower.append(j_lower_copy[jj])
+            j_upper.append(j_upper_copy[jj])
+        
+        self.base.wavelength         = base_data_wl      
+        self.compared_wl_raw         = compared_wl        
+        self.base.avalue             = base_avalue        
+        self.compared_a_values_raw   = compared_avalue    
+        self.base.elower             = base_el               
+        self.base.eupper             = base_eu              
+        self.compared_elower_raw     = comp_el                  
+        self.compared_eupper_raw     = comp_eu    
+        self.base.j_lower = j_lower
+        self.base.j_upper = j_upper
+        self.base.csf_lower = csf_lower
+        self.base.csf_upper = csf_upper            
+
+        return 0
+
+
+    def write_out_data_file(self,filename,label1,label2,ignore_null=False,sorting=''):
+        file = open(filename,'w')
+        format_string = 'F10.2,1X,F10.2,2ES10.2,F11.2,1X,F11.2,F11.2,1X,F10.1,5X,a11,1X,,A10,1X,F3.1,4X,A11,1x,A10,1X,F3.1'
+        CON = label1 
+        KUR = label2
+
+        header = "#    "+CON+"wl      "+KUR+"wl      "+CON+"a      "+KUR+"a     "+CON+"el      "+CON+"eu     "+KUR+"el      "+KUR+"eu" +'\n'
+
+        file.write(header)
+        line = ff.FortranRecordWriter(format_string)
+
+        base_data_wl    = self.base.wavelength
+        compared_wl     = self.compared_wl_raw
+        base_avalue     = self.base.avalue
+        compared_avalue = self.compared_a_values_raw
+        base_el         = self.base.elower
+        base_eu         = self.base.eupper
+        comp_el         = self.compared_elower_raw
+        comp_eu         = self.compared_eupper_raw
+        csf_upper = self.base.csf_upper
+        csf_lower = self.base.csf_lower
+        j_upper = self.base.j_upper
+        j_lower = self.base.j_lower 
+        avalue_ratio = base_avalue/compared_avalue
+
+        temp_array_for_my_sanity = base_el 
+        temp_array_for_my_sanity = np.concatenate((temp_array_for_my_sanity,base_eu)) 
+
+        levels = (np.unique(temp_array_for_my_sanity))
+        
+        print(levels)
+
+        if sorting == 'avalue_ratio':
+            sorted_indices = np.argsort(avalue_ratio)
+        elif sorting == 'wavelength':
+            sorted_indices = np.argsort(base_data_wl)
+        elif sorting == 'base_el':
+
+            sorted_indices = np.argsort(base_el)
+            base_data_wl    = base_data_wl[sorted_indices]  
+            compared_wl     = compared_wl[sorted_indices]  
+            base_avalue     = base_avalue[sorted_indices]  
+            compared_avalue = compared_avalue[sorted_indices]  
+            base_el         = base_el[sorted_indices]  
+            base_eu         = base_eu[sorted_indices]  
+            comp_el         = comp_el[sorted_indices]  
+            comp_eu         = comp_eu[sorted_indices]   
+            csf_lower_copy = csf_lower
+            csf_upper_copy = csf_upper
+            j_lower_copy = j_lower
+            j_upper_copy = j_upper
+
+            csf_lower = []  
+            csf_upper = [] 
+            j_lower = []
+            j_upper = []
+            for jj in sorted_indices:
+                csf_lower.append(csf_lower_copy[jj])
+                csf_upper.append(csf_upper_copy[jj])
+                j_lower.append(j_lower_copy[jj])
+                j_upper.append(j_upper_copy[jj])
+                #sorted_indices = np.array([])
+
+            unique_energies,counts = np.unique(base_el,return_counts=True)
+            #print(unique_energies,counts,np.shape(counts))
+            offset = 0
+            print(sorted_indices)
+            for ii in range(0,np.shape(counts)[0]-1):
+        
+                #print(offset,offset + counts[ii])
+                
+                new_indices = np.argsort(base_eu[offset:offset + counts[ii]]) + offset
+
+                #print(base_eu[new_indices])
+
+                sorted_indices[offset:offset + counts[ii]] = new_indices
+                offset += counts[ii]
+
+                #print(base_el_temp[counts[ii-1]-1:counts[ii]])
+            print(sorted_indices)
+
+
+
+
+        else:
+            sorted_indices = np.arange(0,len(base_data_wl),1)
+
+
+        base_data_wl    = base_data_wl[sorted_indices]  
+        compared_wl     = compared_wl[sorted_indices]  
+        base_avalue     = base_avalue[sorted_indices]  
+        compared_avalue = compared_avalue[sorted_indices]  
+        base_el         = base_el[sorted_indices]  
+        base_eu         = base_eu[sorted_indices]  
+        comp_el         = comp_el[sorted_indices]  
+        comp_eu         = comp_eu[sorted_indices]  
+
+        #print(sorted_indices)
+
+        #j_lower         =  j_lower  [sorted_indices]  
+        #j_upper         =  j_upper  [sorted_indices]  
+
+        csf_lower_copy = csf_lower
+        csf_upper_copy = csf_upper
+        j_lower_copy = j_lower
+        j_upper_copy = j_upper
+
+        csf_lower = []  
+        csf_upper = [] 
+        j_lower = []
+        j_upper = []
+
+        if len(csf_lower)>0:
+
+            for jj in sorted_indices:
+                csf_lower.append(csf_lower_copy[jj])
+                csf_upper.append(csf_upper_copy[jj])
+                j_lower.append(j_lower_copy[jj])
+                j_upper.append(j_upper_copy[jj])
 
 
 
         for jj in range(0,len(base_data_wl)):
+            lower_index = np.argwhere(base_el[jj] == levels)
+            upper_index = np.argwhere(base_eu[jj] == levels)
+
+            if len(lower_index) > 0: 
+                lower_index = lower_index[0][0] + 1
+            else:
+                lower_index = 'indfail'
+
+            if len(upper_index) > 0: 
+                upper_index = upper_index[0][0] + 1
+            else:
+                lower_index = 'indfail'
+
             array = [base_data_wl[jj],compared_wl[jj],base_avalue[jj],compared_avalue[jj],base_el[jj],base_eu[jj],comp_el[jj],comp_eu[jj]]
             #string_to_be_written = str(wl_connor[jj]) + " " +str(kurucz_a_values_raw[jj]) +'\n'
+            if len(csf_lower)>0:
+
+                lower_array = ['level'+str(lower_index) ,csf_lower[jj],j_lower[jj]]
+                upper_array = ['level'+str(upper_index) ,csf_upper[jj],j_upper[jj]]
+                array.extend(lower_array)
+    
+                array.extend(upper_array)
+            
             if not(ignore_null and (compared_wl[jj] == -1.0)):
                 file.write(line.write(array))
                 file.write("\n")
+            
 
         file.close()
+
+#def write_out_many_datas(heading_string_array,list_of_comparison_classes):
+#    #assumes all the comparison classes have  the same base data. messy for now.
+#    #further assumes they have all been sorted the same way 
+#
+#    num_comparisons = len(heading_string_array)
+#    assert(num_comparisons == len(list_of_comparison_classes))
+#
+#    format_string = 'F10.2,'+ str(num_comparisons)+'ES10.2,F11.2,1X,F11.2,5X,a11,1X,,A10,1X,F3.1,4X,A11,1x,A10,1X,F3.1'
+#    base_data_wl    = list_of_comparison_classes[0].base.wavelength
+#
+#    base_data_wl    = list_of_comparison_classes[0].base.wavelength
+#    compared_wl     = list_of_comparison_classes[0].compared_wl_raw
+#    base_avalue     = list_of_comparison_classes[0].base.avalue
+#    compared_avalue = list_of_comparison_classes[0].compared_a_values_raw
+#    base_el         = list_of_comparison_classes[0].base.elower
+#    base_eu         = list_of_comparison_classes[0].base.eupper
+#    comp_el         = list_of_comparison_classes[0].compared_elower_raw
+#    comp_eu         = list_of_comparison_classes[0].compared_eupper_raw
+#    csf_upper = list_of_comparison_classes[0].base.csf_upper
+#    csf_lower = list_of_comparison_classes[0].base.csf_lower
+#    j_upper = list_of_comparison_classes[0].base.j_upper
+#    j_lower = list_of_comparison_classes[0].base.j_lower 
+#    
+#    temp_array_for_my_sanity = base_el 
+#    temp_array_for_my_sanity = np.concatenate((temp_array_for_my_sanity,base_eu)) 
+#    levels = (np.unique(temp_array_for_my_sanity))
+#
+#    temp_array_for_my_sanity = base_el 
+#    temp_array_for_my_sanity = np.concatenate((temp_array_for_my_sanity,base_eu)) 
+#
+#    levels = (np.unique(temp_array_for_my_sanity))
+#
+#    for jj in range(0,len(base_data_wl)):   
+#            lower_index = np.argwhere(base_el[jj] == levels)
+#            upper_index = np.argwhere(base_eu[jj] == levels)
+#
+#            if len(lower_index) > 0: 
+#                lower_index = lower_index[0][0] + 1
+#            else:
+#                lower_index = 'indfail'
+#
+#            if len(upper_index) > 0: 
+#                upper_index = upper_index[0][0] + 1
+#            else:
+#                lower_index = 'indfail'
+#
+#            array = [base_data_wl[jj],compared_wl[jj],base_avalue[jj],compared_avalue[jj],base_el[jj],base_eu[jj],comp_el[jj],comp_eu[jj]]
+#            #string_to_be_written = str(wl_connor[jj]) + " " +str(kurucz_a_values_raw[jj]) +'\n'
+#            lower_array = ['level'+str(lower_index) ,csf_lower[jj],j_lower[jj]]
+#            upper_array = ['level'+str(upper_index) ,csf_upper[jj],j_upper[jj]]
+#            array.extend(lower_array)
+#
+#            array.extend(upper_array)
+#            
+#            if not(ignore_null and (compared_wl[jj] == -1.0)):
+#                file.write(line.write(array))
+#                file.write("\n")
+#            
+#
+#        file.close()
+#    return 0 
+
+
+
+
+
 
 def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
     format_string = 'F11.4,F7.3,F6.2,F12.3,F5.1,1X,A10,F12.3,F5.1,1X,A10,F6.2,F6.2,F6.2,A4,I2,I2,I3,F6.3,I3,F6.3,I5,I5,A10,I5,I5'
@@ -260,13 +597,16 @@ def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
     f_opened = f.readlines()
     f.close()
     numlines = len(f_opened)
-    
+    if wavelength_convert == False:
+        print("WARNING: wavelength conversion is off - assumes your wavelength data is in ritz vac.")
     wavelengths_air_nm = np.zeros(numlines)
     loggf_kurucz = np.zeros(numlines)
     upper_j = np.zeros(numlines)
     lower_j = np.zeros(numlines)
     e_upper = np.zeros(numlines)
     e_lower = np.zeros(numlines)
+    csf_label_lower = []
+    csf_label_upper = []
     reader = ff.FortranRecordReader(format_string)
     for ii in range(0,numlines):
         array = reader.read(f_opened[ii])
@@ -281,12 +621,18 @@ def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
             upper_j[ii] = array[7]
             e_upper[ii] = eu
             e_lower[ii] = el
+            csf_label_lower.append(array[5])
+            csf_label_upper.append(array[8])
+
+
         else:
             upper_j[ii] = array[4]
             lower_j[ii] = array[7]
             e_upper[ii] = el
             e_lower[ii] = eu
-    dataclass = dataset(e_upper,e_lower,wavelength_nm=wavelengths_air_nm,loggf=loggf_kurucz,j_upper=upper_j,j_lower=lower_j)
+            csf_label_lower.append(array[8])
+            csf_label_upper.append(array[5])
+    dataclass = dataset(e_upper,e_lower,wavelength_nm=wavelengths_air_nm,loggf=loggf_kurucz,j_upper=upper_j,j_lower=lower_j,csf_lower=csf_label_lower,csf_upper=csf_label_upper)
 
     if wavelength_convert:
         dataclass.convert_wavelengths_to_vaccuum()
