@@ -1,7 +1,7 @@
 import numpy as np
 import fortranformat as ff
 import scipy.stats as ss
-from PyAstronomy import pyasl
+#from PyAstronomy import pyasl
 
 OSCILLATOR_CONVERSION_CONST = 6.67025177e13 #This number is from Drake's handbook on atomic physics.
 
@@ -9,7 +9,7 @@ def wl_conversion(wavelengths_in_nm):
     #some data sets have wl > 200nm in air, for some reason.
     #angstrom and vacuum malarky.
     num = len(wavelengths_in_nm)
-
+    from PyAstronomy import pyasl
     #briefly convert to angs because of weird astronomer things
     wavelengths_in_nm = 10.0 * wavelengths_in_nm
     counter = 0
@@ -184,9 +184,9 @@ class comparison:
                     test_upper = compared_uppers[ii]
                     #print(len(base_ju))
 
-
+                    print('test lpm:' , test_upper, current_upper, tolerance_wavenumber,np.abs(test_upper - current_upper) < tolerance_wavenumber)
                     if np.abs(test_upper - current_upper) < tolerance_wavenumber:
-                        
+                        print(' This one within tolerance:', test_upper,current_upper, tolerance_wavenumber)
                         #this is so messy. i am sorry for 
                         #my future self who has to debug this
                         #print(len(base_ju))
@@ -219,9 +219,14 @@ class comparison:
                             self.compared_elower_raw[jj] = compared_lowers[ii]
 
                             break 
+                #
                 if match_found == False:
                     print("requested upper ",current_upper," with possible comparable uppers ",possible_uppers )
-                    print("wavelength found ",current_wavelength, "but no matching upper found.")
+                    print("    wavelength found ",current_wavelength, "but no matching upper found.")
+                    if (len(base_ju) > 0) and (len(base_jl) > 0) and (len(comp_ju) > 0) and (len(comp_jl) > 0) :
+                        print(f'    Needed upper j: {base_ju[jj]}, found upper j values: ',comp_ju[possible_wavelengths_indices])
+                        print(f'    Needed lower j: {base_jl[jj]}, lower j values: ',comp_jl[possible_wavelengths_indices])
+
             else:
                 print("wavelength ",current_wavelength,' not found in compared data set')
                 wavelengths_not_found.append(current_wavelength)
@@ -244,6 +249,7 @@ class comparison:
         self.avalue_base_found = self.base.avalue[wavelength_indices_found]
         self.foundwlbase = base_wavelengths_found
         self.foundwlcomp = comp_wavelengths_found
+        print(base_wavelengths_found,comp_wavelengths_found)
         self.compared_data = compared_data(self)
     
     def sort(self,sorting = ''):
@@ -482,8 +488,8 @@ class comparison:
         j_lower = []
         j_upper = []
 
-        if len(csf_lower)>0:
-
+        if len(csf_lower_copy)>0:
+            print('hello')
             for jj in sorted_indices:
                 csf_lower.append(csf_lower_copy[jj])
                 csf_upper.append(csf_upper_copy[jj])
@@ -590,7 +596,7 @@ class comparison:
 
 
 
-def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
+def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True,energy_cutoff=np.inf):
     format_string = 'F11.4,F7.3,F6.2,F12.3,F5.1,1X,A10,F12.3,F5.1,1X,A10,F6.2,F6.2,F6.2,A4,I2,I2,I3,F6.3,I3,F6.3,I5,I5,A10,I5,I5'
     print("reading in Kurucz. Note that Kurucz data has wls in air (nm) and transitions strengths in log gf.")
     f = open(kurucz_path,'r')
@@ -607,31 +613,43 @@ def read_kurucz(kurucz_path,wavelength_convert=True,calculate_a_values=True):
     e_lower = np.zeros(numlines)
     csf_label_lower = []
     csf_label_upper = []
+    
     reader = ff.FortranRecordReader(format_string)
-    for ii in range(0,numlines):
-        array = reader.read(f_opened[ii])
-        wavelengths_air_nm[ii] = array[0]
-        loggf_kurucz[ii] = array[1]
+    ii = 0
+    for kk in range(0,numlines):
+        array = reader.read(f_opened[kk])
+
 
         el = np.abs(array[3])
         eu = np.abs(array[6])
 
-        if eu > el:
-            lower_j[ii] = array[4]
-            upper_j[ii] = array[7]
-            e_upper[ii] = eu
-            e_lower[ii] = el
-            csf_label_lower.append(array[5])
-            csf_label_upper.append(array[8])
+        if max(el,eu) < energy_cutoff:
+            wavelengths_air_nm[ii] = array[0]
+            loggf_kurucz[ii] = array[1]
+            if eu > el:
+                lower_j[ii] = array[4]
+                upper_j[ii] = array[7]
+                e_upper[ii] = eu
+                e_lower[ii] = el
+                csf_label_lower.append(array[5])
+                csf_label_upper.append(array[8])
 
 
-        else:
-            upper_j[ii] = array[4]
-            lower_j[ii] = array[7]
-            e_upper[ii] = el
-            e_lower[ii] = eu
-            csf_label_lower.append(array[8])
-            csf_label_upper.append(array[5])
+            else:
+                upper_j[ii] = array[4]
+                lower_j[ii] = array[7]
+                e_upper[ii] = el
+                e_lower[ii] = eu
+                csf_label_lower.append(array[8])
+                csf_label_upper.append(array[5])
+            ii+=1 
+    loggf_kurucz = loggf_kurucz[0:ii] 
+    upper_j      = upper_j     [0:ii] 
+    lower_j      = lower_j     [0:ii] 
+    e_upper      = e_upper     [0:ii] 
+    e_lower      = e_lower     [0:ii] 
+    wavelengths_air_nm = wavelengths_air_nm[0:ii]
+
     dataclass = dataset(e_upper,e_lower,wavelength_nm=wavelengths_air_nm,loggf=loggf_kurucz,j_upper=upper_j,j_lower=lower_j,csf_lower=csf_label_lower,csf_upper=csf_label_upper)
 
     if wavelength_convert:
